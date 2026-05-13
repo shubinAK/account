@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "Location": {
+      "title": "Location",
+      "description": "A physical academy branch.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "managerId": { "type": "string" }
+      },
+      "required": ["name", "address"]
+    },
+    "Sport": {
+      "title": "Sport",
+      "description": "A sport offered by the academy.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Package": {
+      "title": "Package",
+      "description": "A pricing plan for a sport.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "sportId": { "type": "string" },
+        "durationMonths": { "type": "integer" },
+        "price": { "type": "number" },
+        "taxPercent": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["name", "sportId", "durationMonths", "price"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A student enrolled in the academy.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "locationId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "expiring", "expired"] },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "locationId"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "A student's active enrollment in a package.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "packageId": { "type": "string" },
+        "sportId": { "type": "string" },
+        "locationId": { "type": "string" },
+        "startDate": { "type": "string", "format": "date" },
+        "expiryDate": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["active", "expired"] }
+      },
+      "required": ["studentId", "packageId", "startDate", "expiryDate"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "A billing record for a renewal or new enrollment.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "subscriptionId": { "type": "string" },
+        "amount": { "type": "number" },
+        "tax": { "type": "number" },
+        "total": { "type": "number" },
+        "paymentMode": { "type": "string", "enum": ["cash", "card", "online", "upi"] },
+        "date": { "type": "string", "format": "date-time" },
+        "locationId": { "type": "string" }
+      },
+      "required": ["studentId", "amount", "total", "date", "locationId"]
+    }
+  },
+  "firestore": {
+    "locations": {
+      "schema": "Location",
+      "description": "Collection of academy branches."
+    },
+    "sports": {
+      "schema": "Sport",
+      "description": "Collection of sports offered."
+    },
+    "packages": {
+      "schema": "Package",
+      "description": "Collection of membership plans."
+    },
+    "students": {
+      "schema": "Student",
+      "description": "Collection of students."
+    },
+    "subscriptions": {
+      "schema": "Subscription",
+      "description": "Active student memberships."
+    },
+    "invoices": {
+      "schema": "Invoice",
+      "description": "Financial records."
+    }
+  }
+}

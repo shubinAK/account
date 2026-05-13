@@ -1,0 +1,576 @@
+import React from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { 
+  ArrowLeft, 
+  Search, 
+  User, 
+  Package as PackageIcon, 
+  Calendar, 
+  CreditCard, 
+  Printer, 
+  Download, 
+  Share2,
+  Mail,
+  Phone,
+  ReceiptText
+} from 'lucide-react';
+import { 
+  STUDENTS, 
+  PACKAGES, 
+  SPORTS, 
+  LOCATIONS, 
+  INVOICES,
+  ACADEMY_DETAILS,
+  GST_RATES
+} from '@/data/mockData';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { toast } from 'sonner';
+
+export default function CreateInvoice() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const sportId = searchParams.get('sportId');
+  const sport = SPORTS.find(s => s.id === sportId) || SPORTS[0];
+  
+  const defaultGstRatePercentage = GST_RATES.find(r => r.isDefault)?.percentage.toString() || '18';
+  
+  const [selectedStudentId, setSelectedStudentId] = React.useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [paymentMode, setPaymentMode] = React.useState('QR');
+  const [gstRate, setGstRate] = React.useState(defaultGstRatePercentage);
+  const [isGenerated, setIsGenerated] = React.useState(false);
+  const [amount, setAmount] = React.useState<string>('0');
+  const [discount, setDiscount] = React.useState<string>('0');
+  
+  const selectedStudent = STUDENTS.find(s => s.id === selectedStudentId);
+
+  React.useEffect(() => {
+    if (selectedStudent) {
+      const pkg = PACKAGES.find(p => p.id === selectedStudent.packageId) || PACKAGES.find(p => p.sportId === sportId);
+      if (pkg) setAmount(pkg.price.toString());
+    }
+  }, [selectedStudentId, sportId, selectedStudent]);
+  
+  const filteredStudents = STUDENTS.filter(s => 
+    s.sportId === sportId && 
+    (s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.phone.includes(searchTerm))
+  );
+  
+  const studentPayments = INVOICES.filter(inv => inv.studentId === selectedStudentId);
+  const branch = LOCATIONS[0];
+  
+  // Package calculation
+  const studentPackage = PACKAGES.find(p => p.id === selectedStudent?.packageId) || PACKAGES.find(p => p.sportId === sportId);
+  const subtotal = parseFloat(amount) || 0;
+  const discountAmount = parseFloat(discount) || 0;
+  const taxableAmount = Math.max(0, subtotal - discountAmount);
+  const currentTaxRate = parseInt(gstRate) / 100;
+  const taxAmount = taxableAmount * currentTaxRate;
+  const total = taxableAmount + taxAmount;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownload = () => {
+    toast.success('Invoice downloaded as PDF');
+  };
+
+  const handleShare = (method: 'email' | 'whatsapp') => {
+    toast.success(`Invoice shared via ${method}`);
+  };
+
+  // Invoice Number Generation
+  const academyPrefix = ACADEMY_DETAILS.name.substring(0, 3).toUpperCase();
+  const sequenceNumber = (INVOICES.length + 1).toString().padStart(2, '0');
+  const invoiceNumber = `INC${academyPrefix}${sequenceNumber}`;
+
+  return (
+    <div className="flex-1 bg-gray-50 flex flex-col rounded-2xl overflow-hidden border shadow-sm">
+      {/* Header */}
+      <div className="bg-white border-b px-8 py-4 flex items-center justify-between sticky top-0 z-10 print:hidden">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
+            <ArrowLeft className="w-5 h-5 text-gray-500" />
+          </Button>
+          <div className="h-8 w-[1px] bg-gray-200"></div>
+          <div>
+            <h1 className="text-xl font-bold font-display text-gray-900 tracking-tight">Create Invoice</h1>
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">{sport.name} Department • {branch.name}</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" className="gap-2 text-xs font-bold uppercase transition-all hover:bg-kickstart-lime/10 border-kickstart-lime/20 text-kickstart-forest" onClick={handlePrint}>
+            <Printer className="w-3.5 h-3.5" />
+            Print
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2 text-xs font-bold uppercase transition-all hover:bg-emerald-50 border-emerald-100 text-emerald-600" onClick={handleDownload}>
+            <Download className="w-3.5 h-3.5" />
+            PDF
+          </Button>
+          <div className="h-6 w-[1px] bg-gray-200 mx-1"></div>
+          <Button className="bg-kickstart-forest text-white gap-2 h-9 px-6 text-xs font-bold uppercase hover:bg-kickstart-forest/90" onClick={() => toast.success('Invoice Finalized & Saved')}>
+            Finalize Invoice
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden text-gray-900">
+        {/* Left Side: Student Selection & Info */}
+        <div className="w-[400px] border-r bg-white overflow-y-auto p-6 space-y-8 print:hidden scrollbar-hide">
+          <div className="space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Student Lookup</h2>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input 
+                placeholder="Search name or phone..." 
+                className="pl-10 h-11 border-gray-200 focus:ring-indigo-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              {filteredStudents.map(student => (
+                <button
+                  key={student.id}
+                  onClick={() => {
+                    setSelectedStudentId(student.id);
+                    setIsGenerated(false);
+                  }}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl border text-left transition-all group",
+                    selectedStudentId === student.id 
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100" 
+                      : "bg-white border-gray-100 hover:border-indigo-300 hover:bg-indigo-50/50 text-gray-900"
+                  )}
+                >
+                  <div className={cn(
+                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
+                    selectedStudentId === student.id ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-kickstart-lime/20 group-hover:text-kickstart-forest"
+                  )}>
+                    {student.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm truncate">{student.name}</p>
+                    <p className={cn("text-[10px] font-medium", selectedStudentId === student.id ? "text-kickstart-lime" : "text-gray-500")}>
+                      {student.phone}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-[1px] bg-gray-100"></div>
+
+          {/* UPI QR Code Display (Visible when QR mode selected) */}
+          {paymentMode === 'QR' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-kickstart-forest">Payment QR Code</h2>
+              <div className="p-6 bg-white rounded-3xl border-2 border-kickstart-lime/20 shadow-sm flex flex-col items-center gap-4 text-center group transition-all hover:bg-kickstart-lime/5">
+                <div className="p-3 bg-white rounded-2xl shadow-inner border border-gray-50 relative group-hover:scale-105 transition-transform">
+                  <img 
+                    src={ACADEMY_DETAILS.upiQrCode} 
+                    alt="UPI QR Code" 
+                    className="w-32 h-32 rounded-lg"
+                  />
+                  <div className="absolute inset-0 bg-kickstart-lime/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-kickstart-lime uppercase tracking-[0.2em] leading-none">Scan with any UPI App</p>
+                  <p className="text-sm font-black text-gray-900 tracking-tight">{ACADEMY_DETAILS.upiId}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Invoice Configuration */}
+          <div className="space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-kickstart-forest">Invoice Configuration</h2>
+            <div className="grid gap-4 p-5 bg-kickstart-lime/5 rounded-2xl border border-kickstart-lime/10">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-kickstart-forest opacity-70">Base Amount (₹)</label>
+                  <Input 
+                    type="number" 
+                    value={amount} 
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      setIsGenerated(false);
+                    }}
+                    className="bg-white border-kickstart-lime/20 h-10 focus:ring-kickstart-lime"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-kickstart-forest opacity-70">Discount (₹)</label>
+                  <Input 
+                    type="number" 
+                    value={discount} 
+                    onChange={(e) => {
+                      setDiscount(e.target.value);
+                      setIsGenerated(false);
+                    }}
+                    className="bg-white border-kickstart-lime/20 h-10 focus:ring-kickstart-lime"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-kickstart-forest opacity-70">Payment Context</label>
+                  <Select 
+                    value={paymentMode} 
+                    onValueChange={(v) => {
+                      setPaymentMode(v);
+                      setIsGenerated(false);
+                    }}
+                  >
+                    <SelectTrigger className="bg-white border-kickstart-lime/20 h-10">
+                      <SelectValue placeholder="Select Mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="QR">UPI/QR code</SelectItem>
+                      <SelectItem value="Bank">Bank</SelectItem>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-kickstart-forest opacity-70">GST %</label>
+                  <Select 
+                    value={gstRate} 
+                    onValueChange={(v) => {
+                      setGstRate(v);
+                      setIsGenerated(false);
+                    }}
+                  >
+                    <SelectTrigger className="bg-white border-kickstart-lime/20 h-10">
+                      <SelectValue placeholder="GST" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GST_RATES.map(rate => (
+                        <SelectItem key={rate.id} value={rate.percentage.toString()}>
+                          {rate.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button 
+                className="w-full bg-kickstart-forest hover:bg-kickstart-forest/90 shadow-lg shadow-kickstart-forest/10 h-12 font-bold text-xs uppercase tracking-wider"
+                onClick={() => {
+                  if (!selectedStudentId) {
+                    toast.error("Please select a student first");
+                    return;
+                  }
+                  setIsGenerated(true);
+                  toast.success('Invoice Generated & Marked as PAID');
+                }}
+              >
+                {isGenerated ? 'Regenerate Invoice' : 'Generate Invoice'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="h-[1px] bg-gray-100 text-transparent"> - </div>
+
+          {selectedStudent && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-left-2 duration-300">
+              <div className="h-[1px] bg-gray-100"></div>
+              
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Current Standing</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Plan</p>
+                    <p className="text-xs font-bold text-gray-900 mt-1">{selectedStudent.packageName}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Expires</p>
+                    <p className="text-xs font-bold text-indigo-600 mt-1">{format(new Date(selectedStudent.expiryDate), 'MMM dd, yyyy')}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Payment History</h3>
+                <div className="space-y-2">
+                  {studentPayments.length > 0 ? studentPayments.map(inv => (
+                    <div key={inv.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100 text-xs">
+                      <div>
+                        <p className="font-bold text-gray-900">₹{inv.total.toLocaleString()}</p>
+                        <p className="text-[10px] text-gray-500">{format(new Date(inv.date), 'MMM dd, yyyy')}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] bg-green-50 text-green-700 border-green-100">Success</Badge>
+                    </div>
+                  )) : (
+                    <p className="text-xs text-gray-400 italic text-center py-4">No past payments found</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Side: Invoice Preview */}
+        <div className="flex-1 bg-gray-100/50 px-16 py-10 overflow-y-auto flex flex-col items-center scrollbar-hide">
+          <div className="w-full max-w-[750px] bg-white shadow-2xl shadow-gray-200 rounded-2xl overflow-hidden print:shadow-none print:rounded-none">
+            {/* Invoice Top Brand Bar */}
+            <div className="h-3 bg-kickstart-lime flex">
+              <div className="w-1/3 h-full bg-kickstart-forest"></div>
+              <div className="w-1/3 h-full bg-kickstart-lime"></div>
+              <div className="w-1/3 h-full bg-kickstart-yellow"></div>
+            </div>
+            
+            <div className="px-14 py-10 space-y-10">
+              {/* Invoice Header */}
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-5">
+                  <div className="w-16 h-16 rounded-xl bg-kickstart-forest flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-kickstart-forest/20 shrink-0 border-2 border-kickstart-yellow">
+                    {ACADEMY_DETAILS.logoText}
+                  </div>
+                  <div className="space-y-0.5">
+                    <h2 className="text-xl font-display font-black text-gray-900 uppercase tracking-tight leading-tight">{ACADEMY_DETAILS.name}</h2>
+                    <p className="text-kickstart-forest font-bold text-xs leading-none flex items-center gap-1.5 uppercase tracking-wide">
+                      <ReceiptText className="w-3.5 h-3.5 text-kickstart-lime" />
+                      {branch.name} Branch
+                    </p>
+                    <div className="pt-1.5 flex flex-col gap-0.5">
+                      <p className="text-[10px] text-gray-500 max-w-[200px] leading-tight">{ACADEMY_DETAILS.address}</p>
+                      <p className="text-[10px] font-bold text-gray-700">Reg No: {ACADEMY_DETAILS.registrationNumber}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-right space-y-3">
+                  <h1 className="text-2xl font-display font-bold text-gray-100 uppercase tracking-tight leading-none mb-1">Invoice</h1>
+                  <div className="space-y-1">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Invoice Number</span>
+                      <span className="text-xs font-bold text-kickstart-forest">{isGenerated ? invoiceNumber : '---'}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Date Issued</span>
+                      <span className="text-xs font-bold text-gray-900">{format(new Date(), 'MMMM dd, yyyy')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tax Details Grid */}
+              <div className="grid grid-cols-4 gap-4 p-6 bg-kickstart-lime/5 rounded-2xl border border-kickstart-lime/10">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-kickstart-forest/50 uppercase tracking-widest">GST Number</span>
+                  <span className="text-xs font-bold text-gray-900">{ACADEMY_DETAILS.gstNumber}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-kickstart-forest/50 uppercase tracking-widest">PAN Number</span>
+                  <span className="text-xs font-bold text-gray-900">{ACADEMY_DETAILS.panNumber}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-kickstart-forest/50 uppercase tracking-widest">Contact</span>
+                  <span className="text-xs font-bold text-gray-900">{ACADEMY_DETAILS.phone}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-kickstart-forest/50 uppercase tracking-widest">Email</span>
+                  <span className="text-xs font-bold text-gray-900">{ACADEMY_DETAILS.email}</span>
+                </div>
+              </div>
+
+              {/* To Detail & Payment Context */}
+              <div className="grid grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-kickstart-forest flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-kickstart-yellow" />
+                    Bill To
+                  </h3>
+                  {selectedStudent ? (
+                    <div className="p-6 rounded-2xl bg-gray-50/50 border border-gray-100 space-y-1 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-kickstart-lime/5 rounded-full -mr-12 -mt-12 transition-transform group-hover:scale-110" />
+                      <p className="text-lg font-bold text-gray-900 leading-tight">{selectedStudent.name}</p>
+                      <p className="text-sm font-medium text-gray-500">{selectedStudent.email}</p>
+                      <p className="text-sm font-medium text-gray-500">{selectedStudent.phone}</p>
+                      <div className="pt-2">
+                        <Badge variant="outline" className="bg-kickstart-lime/10 text-kickstart-forest border-kickstart-lime/20 text-[10px] font-bold">
+                          STUDENT ID: {selectedStudent.id.padStart(4, '0')}
+                        </Badge>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-32 flex items-center justify-center border-2 border-dashed border-gray-100 rounded-2xl">
+                      <p className="text-xs text-gray-400 font-medium italic">Select a student from the sidebar</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-kickstart-forest flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-kickstart-yellow" />
+                    Payment Context
+                  </h3>
+                  <div className="p-6 bg-kickstart-lime/5 rounded-2xl border border-kickstart-lime/10 space-y-4">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">Payment Mode</span>
+                      <span className="font-bold text-gray-900 uppercase tracking-tight">{paymentMode === 'QR' ? 'UPI / QR CODE' : paymentMode}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">Payment Status</span>
+                      <Badge className={cn(
+                        "font-bold border uppercase text-[10px] tracking-wider px-3",
+                        isGenerated 
+                          ? "bg-emerald-100 text-emerald-700 border-emerald-200" 
+                          : "bg-amber-100 text-amber-700 border-amber-200"
+                      )}>
+                        {isGenerated ? 'Paid' : 'Pending'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">Tax Status</span>
+                      <span className="font-bold text-kickstart-forest">{gstRate}% GST Applied</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-12 px-10 py-4 bg-kickstart-forest rounded-2xl text-[10px] font-black uppercase tracking-[0.25em] text-kickstart-lime">
+                  <div className="col-span-6">Item Description</div>
+                  <div className="col-span-2 text-center">Qty</div>
+                  <div className="col-span-2 text-right">Rate</div>
+                  <div className="col-span-2 text-right">Amount</div>
+                </div>
+                
+                <div className="px-10 py-5 grid grid-cols-12 text-sm items-center border-b border-gray-50 hover:bg-gray-50/50 transition-colors rounded-xl">
+                  <div className="col-span-6">
+                    <p className="font-bold text-gray-900 text-base tracking-tight">{studentPackage?.name || 'Select Package'}</p>
+                    <p className="text-xs text-gray-400 mt-2 font-medium">{sport.name} Training • {studentPackage?.durationMonths || 1} Month Access</p>
+                  </div>
+                  <div className="col-span-2 text-center font-bold text-gray-900 bg-gray-100 w-fit mx-auto px-3 py-1 rounded-lg">
+                    01
+                  </div>
+                  <div className="col-span-2 text-right font-medium text-gray-600">
+                    ₹{subtotal.toLocaleString()}
+                  </div>
+                  <div className="col-span-2 text-right font-black text-gray-900 text-base">
+                    ₹{subtotal.toLocaleString()}
+                  </div>
+                </div>
+
+                {/* Totals */}
+                <div className="flex justify-end pt-3">
+                  <div className="w-full max-w-[320px] rounded-2xl bg-gray-50 p-6 space-y-3 border border-gray-100">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400 font-bold uppercase tracking-widest text-[9px]">Subtotal</span>
+                      <span className="font-bold text-gray-900 text-right">₹{subtotal.toLocaleString()}</span>
+                    </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-emerald-500 font-bold uppercase tracking-widest text-[9px]">Discount</span>
+                        <span className="font-bold text-emerald-600 text-right">- ₹{discountAmount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm items-center">
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 font-bold uppercase tracking-widest text-[9px]">GST ({gstRate}%)</span>
+                        <span className="text-[8px] text-gray-400 font-medium">Central & State Tax</span>
+                      </div>
+                      <span className="font-bold text-gray-900 text-right">₹{taxAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="pt-6 mt-2 border-t-2 border-dashed border-gray-200 flex justify-between items-end">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-bold text-kickstart-lime uppercase tracking-[0.2em] leading-none">Total Payable</span>
+                        <h4 className="text-xl font-display font-bold text-kickstart-forest leading-none">Grand Total</h4>
+                      </div>
+                      <span className="text-xl font-display font-bold text-kickstart-forest tracking-tight">₹{total.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer / Notes */}
+              <div className="grid grid-cols-2 gap-16 pt-12 mt-12 border-t border-gray-100">
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-kickstart-yellow ring-4 ring-kickstart-yellow/20" />
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Important Terms</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-gray-500 leading-relaxed font-bold flex gap-2">
+                        <span className="text-kickstart-lime">01.</span>
+                        This is a computer generated invoice and does not require a physical signature.
+                      </p>
+                      <p className="text-[10px] text-gray-500 leading-relaxed font-bold flex gap-2">
+                        <span className="text-kickstart-lime">02.</span>
+                        Package validity starts from the date of first session.
+                      </p>
+                      <p className="text-[10px] text-gray-500 leading-relaxed font-bold flex gap-2">
+                        <span className="text-kickstart-lime">03.</span>
+                        No refunds will be provided for early cancellations.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center justify-center space-y-3 text-center">
+                   <div className="w-40 h-16 border-2 border-dashed border-kickstart-lime/20 rounded-2xl flex items-center justify-center relative overflow-hidden bg-white group">
+                     <div className="absolute inset-0 bg-kickstart-lime/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                     <div className="text-[9px] font-black text-gray-200 uppercase tracking-[0.3em] rotate-12 select-none border border-gray-100 p-1.5 rounded">
+                       STAMP
+                     </div>
+                     <div className="absolute inset-x-0 bottom-1.5 text-[7px] font-bold text-kickstart-lime opacity-40 uppercase tracking-widest">
+                       Digital Seal
+                     </div>
+                   </div>
+                   <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em]">Authorized Signatory</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Bottom Decoration */}
+            <div className="h-12 bg-kickstart-forest flex items-center justify-between px-14 relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-24 h-full bg-kickstart-lime skew-x-[30deg] translate-x-12 opacity-50" />
+               <div className="absolute top-0 right-0 w-12 h-full bg-kickstart-yellow skew-x-[30deg] translate-x-3 opacity-30" />
+               <p className="text-[8px] font-black text-kickstart-lime uppercase tracking-[0.25em] z-10">{ACADEMY_DETAILS.footerText}</p>
+               <p className="text-[8px] font-black text-white uppercase tracking-[0.4em] z-10">{branch.name} Branch</p>
+            </div>
+        </div>
+
+        {/* Sharing Options */}
+          <div className="mt-12 flex gap-4 print:hidden">
+            <Button variant="outline" className="rounded-3xl h-16 px-10 gap-4 border-white bg-white/50 backdrop-blur shadow-sm hover:shadow-md hover:border-kickstart-lime transition-all group" onClick={() => handleShare('email')}>
+              <div className="p-3 bg-kickstart-lime/10 rounded-2xl group-hover:bg-kickstart-lime/20 transition-colors">
+                <Mail className="w-5 h-5 text-kickstart-forest" />
+              </div>
+              <span className="text-sm font-bold text-gray-700">Send via Email</span>
+            </Button>
+            <Button variant="outline" className="rounded-3xl h-16 px-10 gap-4 border-white bg-white/50 backdrop-blur shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group" onClick={() => handleShare('whatsapp')}>
+              <div className="p-3 bg-emerald-50 rounded-2xl group-hover:bg-emerald-100 transition-colors">
+                <Share2 className="w-5 h-5 text-emerald-600" />
+              </div>
+              <span className="text-sm font-bold text-gray-700">Send via WhatsApp</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
